@@ -2265,7 +2265,7 @@ function draw() {
   background(8, 10, 18, 255);
 
   age = ageSlider.value();
-  health = computeHealth(getAQIatX(ballX), age);
+  health = computeHealth(getAQIatX(ballX), age, 0);
 
   drawContourTerrain();
   updateParticles();
@@ -2518,21 +2518,25 @@ function drawHUD() {
   textSize(10);
   text(BAND_LABELS[band].toUpperCase(), 75, height - 34);
 
-  // Health bar
-  let bx = 330,
-    by = height - 76,
-    bw = 230,
-    bh = 13;
+  // ── Lung health bar ──
+  let bx = 290,
+    by = height - 82,
+    bw = 430,
+    bh = 12;
+  let hPct = int(health);
+  let hCol = conditionColor(hPct);
+
   fill(25, 32, 52);
   rect(bx, by, bw, bh, 4);
-  fill(...healthColorArr(health));
-  rect(bx, by, bw * (health / 100), bh, 4);
+  fill(...hCol);
+  rect(bx, by, bw * (hPct / 100), bh, 4);
+
   fill(210);
   textSize(10);
-  text("LUNG HEALTH  " + int(health) + "%", bx, by + 28);
-  fill(170);
-  textSize(11);
-  text("▸ " + condition(health), bx, by + 45);
+  text("LUNG HEALTH  " + hPct + "%", bx, by + 22);
+  fill(...hCol);
+  textSize(10);
+  text("▸ " + condition(hPct), bx, by + 36);
 
   // Date label
   fill(150);
@@ -2605,26 +2609,43 @@ function aqiColorArr(aqi) {
   ];
 }
 
-function healthColorArr(h) {
-  if (h > 75) return [46, 213, 115];
-  if (h > 55) return [255, 220, 50];
-  if (h > 35) return [255, 130, 26];
-  return [210, 50, 60];
+// conditionColor defined above replaces healthColorArr
+
+// Age factor: children (<12) and elderly (>60) are more vulnerable
+function ageFactor(age) {
+  if (age <= 12) return map(age, 5, 12, 2.0, 1.4);
+  if (age <= 40) return map(age, 12, 40, 1.4, 1.0);
+  if (age <= 60) return map(age, 40, 60, 1.0, 1.4);
+  return map(age, 60, 80, 1.4, 2.2);
 }
 
-function computeHealth(aqi, age) {
-  let ef = map(age, 5, 80, 0.6, 2.4);
-  let impact = map(aqi, 0, 500, 0, 80);
-  return constrain(100 - impact * ef * 0.012 * 12, 0, 100);
+// Daily damage per unit AQI (scaled so AQI 500 causes ~1.5 pts/day at age 25)
+// years=0 means snapshot (30-day baseline); years>0 extends damage accumulation
+function computeHealth(aqi, age, years) {
+  let af = ageFactor(age + (years || 0) / 2); // age drifts over window
+  let dailyDamage = max(0, map(aqi, 0, 500, 0, 3.0) * af - 0.2);
+  let days = years > 0 ? 365 * years : 30;
+  return constrain(100 - dailyDamage * days, 0, 100);
 }
 
 function condition(h) {
-  if (h > 80) return "No significant risk";
-  if (h > 65) return "Mild respiratory irritation";
-  if (h > 50) return "Coughing, eye irritation";
-  if (h > 35) return "Breathing difficulty";
-  if (h > 20) return "Serious lung stress";
+  if (h >= 90) return "Healthy — no risk";
+  if (h >= 75) return "Mild irritation — occasional cough";
+  if (h >= 60) return "Moderate — eye & throat irritation";
+  if (h >= 45) return "Elevated — reduced lung capacity";
+  if (h >= 30) return "High risk — asthma, bronchitis";
+  if (h >= 15) return "Severe — COPD, cardiac stress";
   return "CRITICAL — hazardous exposure";
+}
+
+function conditionColor(h) {
+  if (h >= 90) return [46, 213, 115];
+  if (h >= 75) return [130, 230, 100];
+  if (h >= 60) return [255, 220, 50];
+  if (h >= 45) return [255, 160, 26];
+  if (h >= 30) return [230, 90, 40];
+  if (h >= 15) return [210, 50, 60];
+  return [255, 60, 80];
 }
 
 function drawTrophyButton(x, y, size) {
