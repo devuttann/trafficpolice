@@ -2193,7 +2193,7 @@ let animations = {
 let currentSeq = "seq1";   // tracks which animation sequence is active
 let prevSeq = "seq1";      // used to detect sequence changes and reset frame index
 let frameIndex = 0;
-let frameDelay = 6.5; // lower = faster animation
+let frameDelay = 7; // lower = faster animation
 let frameCounter = 0;
 
 
