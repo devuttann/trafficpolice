@@ -2412,11 +2412,11 @@ function drawOrbAnimated() {
   let c = aqiColorArr(aqi);
 
   // ── SELECT SEQUENCE ───────────────────────
-  if (aqi <= 80) {
+  if (aqi <= 100) {
     currentSeq = "seq1";
-  } else if (aqi <= 130) {
+  } else if (aqi <= 150) {
     currentSeq = "seq2";
-  } else if (aqi <= 200) {
+  } else if (aqi <= 225) {
     currentSeq = "seq3";
   } else if (aqi <= 300) {
     currentSeq = "seq4";
