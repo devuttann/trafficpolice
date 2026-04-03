@@ -2246,28 +2246,38 @@ function preload() {
   congratsImg = loadImage("congrats.png");
 }
 
-// ── p5 lifecycle ──────────────────────────────────────────────
 function setup() {
-  createCanvas(1000, 560);
+  createCanvas(windowWidth, windowHeight);
   colorMode(RGB, 255);
   textFont("monospace");
 
   ageSlider = createSlider(5, 80, 25, 1);
-  ageSlider.position(670, 36);
-  ageSlider.style("width", "200px");
-  ageSlider.style("accent-color", "#46d573");
+  repositionSlider();
 
   ballX = 50 + (width - 100) * 0.2;
   buildContourField();
 }
 
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  repositionSlider();
+}
+
+function repositionSlider() {
+  let sliderX = width * 0.67;
+  let sliderW = min(200, width * 0.2);
+  ageSlider.position(sliderX, 36);
+  ageSlider.style("width", sliderW + "px");
+  ageSlider.style("accent-color", "#1a7a3c");
+}
+
 function draw() {
-  background(8, 10, 18, 255);
+  background(255);
 
   age = ageSlider.value();
   health = computeHealth(getAQIatX(ballX), age, 0);
 
-  //drawContourTerrain();
+  drawTimelineAxis();
   updateParticles();
   drawParticles();
   updateBall();
@@ -2279,10 +2289,31 @@ function draw() {
   updateTrophyTrigger(ballX, endX);
   drawTrophyButton(width - 80, height / 2, 60);
   drawCongratsScreen();
-
 }
 
-// ── Contour terrain (real data + Perlin variance in Y) ────────
+// ── Simple white background — draw a light timeline band ──────
+function drawTimelineAxis() {
+  let x0 = 55,
+    y0 = 80,
+    tw = width - 110,
+    th = height - 180;
+
+  // Subtle light-gray fill for the chart area
+  fill(245, 246, 248);
+  noStroke();
+  rect(x0, y0, tw, th, 4);
+
+  // Light horizontal grid lines
+  stroke(220);
+  strokeWeight(0.5);
+  for (let i = 1; i <= 4; i++) {
+    let y = y0 + (th / 5) * i;
+    line(x0, y, x0 + tw, y);
+  }
+  noStroke();
+}
+
+// ── Contour field (data only — not drawn) ─────────────────────
 function buildContourField() {
   noiseSeed(99);
   field = [];
@@ -2297,55 +2328,6 @@ function buildContourField() {
   }
 }
 
-function drawContourTerrain() {
-  let x0 = 55,
-    y0 = 80,
-    tw = width - 110,
-    th = height - 180;
-  let cw = tw / GRID_W,
-    ch = th / GRID_H;
-
-  noStroke();
-  for (let row = 0; row < GRID_H; row++) {
-    for (let col = 0; col < GRID_W; col++) {
-      let aqi = field[row][col];
-      let c = aqiColorArr(aqi);
-      let depth = map(row, 0, GRID_H - 1, 0.3, 1.0);
-      fill(c[0] * depth, c[1] * depth, c[2] * depth, 210);
-      rect(x0 + col * cw, y0 + row * ch, cw + 0.6, ch + 0.6);
-    }
-  }
-  drawIsoLines(x0, y0, tw, th);
-}
-
-function drawIsoLines(x0, y0, tw, th) {
-  let levels = [50, 100, 200, 300, 400];
-  let cw = tw / GRID_W,
-    ch = th / GRID_H;
-  strokeWeight(0.7);
-  for (let lv of levels) {
-    let c = aqiColorArr(lv + 1);
-    stroke(c[0], c[1], c[2], 80);
-    for (let row = 0; row < GRID_H - 1; row++) {
-      for (let col = 0; col < GRID_W - 1; col++) {
-        let v00 = field[row][col];
-        let v10 = field[row][col + 1];
-        let v01 = field[row + 1][col];
-        if (v00 < lv !== v10 < lv) {
-          let t = (lv - v00) / (v10 - v00);
-          let px = x0 + (col + t) * cw;
-          line(px, y0 + row * ch, px, y0 + row * ch + ch);
-        }
-        if (v00 < lv !== v01 < lv) {
-          let t = (lv - v00) / (v01 - v00);
-          let py = y0 + (row + t) * ch;
-          line(x0 + col * cw, py, x0 + col * cw + cw, py);
-        }
-      }
-    }
-  }
-}
-
 // ── Year tick marks below terrain ─────────────────────────────
 function drawYearTicks() {
   let x0 = 55,
@@ -2354,14 +2336,13 @@ function drawYearTicks() {
   let yBot = height - 95;
 
   for (let yr of years) {
-    // Find first data point of that year
     let idx = AQI_DATA.findIndex((r) => r.d.startsWith(String(yr)));
     if (idx < 0) continue;
     let px = map(idx, 0, N - 1, x0, x0 + tw);
-    stroke(120);
+    stroke(160);
     strokeWeight(0.8);
     line(px, yBot, px, yBot + 6);
-    fill(130);
+    fill(90);
     noStroke();
     textSize(9);
     textAlign(CENTER);
@@ -2448,15 +2429,19 @@ function drawOrbAnimated() {
     ellipse(ballX, oy, r * 2);
   }
 
-  // ── DRAW SPRITE INSTEAD OF BALL ──────────
+  // ── DRAW SPRITE ──────────────────────────────────────────────
   imageMode(CENTER);
-  noSmooth(); // keeps pixel crisp
+  noSmooth(); // keeps pixel-art crisp at integer multiples
 
   let img = frames[frameIndex];
-  image(img, ballX, oy, 64, 64); // scaled from 32x32
+  // Scale to nearest integer multiple of 32 that fits well:
+  // use 3× = 96px for clean pixel scaling at any window size
+  let spriteSize = 96;
+  image(img, ballX, oy, spriteSize, spriteSize);
 
-  // ── KEEP SCAN LINE ───────────────────────
-  stroke(c[0], c[1], c[2], 55);
+  // ── SCAN LINE (dark on white bg) ─────────────────────────────
+  let darkenedC = c.map(v => max(0, v - 60));
+  stroke(darkenedC[0], darkenedC[1], darkenedC[2], 80);
   strokeWeight(1);
   let y0 = 80,
     th = height - 180;
@@ -2502,44 +2487,44 @@ function drawHUD() {
   let band = getBand(aqi);
   let c = aqiColorArr(aqi);
 
-  // Panel
-  fill(12, 16, 28, 220);
+  // Panel — light gray on white bg
+  fill(235, 237, 242, 230);
   noStroke();
   rect(55, height - 95, width - 110, 78, 7);
 
   // AQI big number
-  fill(...c);
+  fill(...c.map(v => max(0, v - 40))); // darken for readability on light bg
   textSize(30);
   textAlign(LEFT, CENTER);
   text("AQI " + nf(int(aqi), 3), 75, height - 60);
 
   // Band label
-  fill(190);
+  fill(80);
   textSize(10);
   text(BAND_LABELS[band].toUpperCase(), 75, height - 34);
 
   // ── Lung health bar ──
   let bx = 290,
     by = height - 82,
-    bw = 430,
+    bw = width - 290 - 220,
     bh = 12;
   let hPct = int(health);
   let hCol = conditionColor(hPct);
 
-  fill(25, 32, 52);
+  fill(210, 213, 220);
   rect(bx, by, bw, bh, 4);
   fill(...hCol);
   rect(bx, by, bw * (hPct / 100), bh, 4);
 
-  fill(210);
+  fill(60);
   textSize(10);
   text("LUNG HEALTH  " + hPct + "%", bx, by + 22);
-  fill(...hCol);
+  fill(...hCol.map(v => max(0, v - 50)));
   textSize(10);
   text("▸ " + condition(hPct), bx, by + 36);
 
   // Date label
-  fill(150);
+  fill(90);
   textSize(10);
   textAlign(RIGHT);
   text(rec.d, width - 65, height - 65);
@@ -2548,18 +2533,18 @@ function drawHUD() {
   textAlign(LEFT);
 
   // Title
-  fill(240);
+  fill(30);
   textSize(12);
   text("AHMEDABAD  AIR QUALITY  2016 – 2025", 55, 50);
-  fill(90);
+  fill(140);
   textSize(9);
   text("DRAG ORB  ←  →    AGE SLIDER →", 55, 65);
 
   // Age slider label
-  fill(160);
+  fill(100);
   textSize(10);
-  text("AGE", 648, 46);
-  text(age, 878, 46);
+  text("AGE", width * 0.64, 46);
+  text(age, width * 0.9, 46);
 }
 
 // ── Legend ────────────────────────────────────────────────────
@@ -2569,9 +2554,9 @@ function drawLegend() {
     lh = (height - 183) / 6;
   noStroke();
   for (let i = 0; i < PALETTE.length; i++) {
-    fill(...PALETTE[i], 170);
+    fill(...PALETTE[i], 200);
     rect(lx, ly + i * lh, 8, lh - 1, 2);
-    fill(130);
+    fill(80);
     textSize(8);
     textAlign(RIGHT);
     text(BAND_MAX[i], lx - 3, ly + i * lh + lh * 0.5 + 3);
@@ -2704,4 +2689,4 @@ function updateTrophyTrigger(bx, endX) {
     showTrophy = false;
     showCongrats = false; // reset when user moves back
   }
-}
+}   
