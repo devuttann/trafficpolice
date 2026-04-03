@@ -2267,7 +2267,7 @@ function draw() {
   age = ageSlider.value();
   health = computeHealth(getAQIatX(ballX), age, 0);
 
-  drawContourTerrain();
+  //drawContourTerrain();
   updateParticles();
   drawParticles();
   updateBall();
