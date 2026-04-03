@@ -2217,6 +2217,7 @@ const GRID_W = 250,
   GRID_H = 80;
 let field = [];
 let particles = [];
+let graphPath = []; // accumulated orb positions for the line plot
 
 function preload() {
   // seq1 (2 frames)
@@ -2246,6 +2247,7 @@ function preload() {
   congratsImg = loadImage("congrats.png");
 }
 
+// ── p5 lifecycle ──────────────────────────────────────────────
 function setup() {
   createCanvas(windowWidth, windowHeight);
   colorMode(RGB, 255);
@@ -2261,26 +2263,28 @@ function setup() {
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   repositionSlider();
+  graphPath = [];
 }
 
 function repositionSlider() {
   let sliderX = width * 0.67;
-  let sliderW = min(200, width * 0.2);
+  let sliderW = floor(width * 0.2);
   ageSlider.position(sliderX, 36);
   ageSlider.style("width", sliderW + "px");
-  ageSlider.style("accent-color", "#1a7a3c");
+  ageSlider.style("accent-color", "#46d573");
 }
 
 function draw() {
-  background(255);
+  background(8, 10, 18, 255);
 
   age = ageSlider.value();
   health = computeHealth(getAQIatX(ballX), age, 0);
 
-  drawTimelineAxis();
+  drawGraphArea();
   updateParticles();
   drawParticles();
   updateBall();
+  drawGraphLine();
   drawOrbAnimated();
   drawHUD();
   drawLegend();
@@ -2291,29 +2295,28 @@ function draw() {
   drawCongratsScreen();
 }
 
-// ── Simple white background — draw a light timeline band ──────
-function drawTimelineAxis() {
-  let x0 = 55,
-    y0 = 80,
-    tw = width - 110,
-    th = height - 180;
-
-  // Subtle light-gray fill for the chart area
-  fill(245, 246, 248);
+// ── White graph area (replaces heatmap) ───────────────────────
+function drawGraphArea() {
+  let x0 = 55, y0 = 80, tw = width - 110, th = height - 180;
+  fill(255);
   noStroke();
-  rect(x0, y0, tw, th, 4);
-
-  // Light horizontal grid lines
-  stroke(220);
-  strokeWeight(0.5);
-  for (let i = 1; i <= 4; i++) {
-    let y = y0 + (th / 5) * i;
-    line(x0, y, x0 + tw, y);
-  }
-  noStroke();
+  rect(x0, y0, tw, th);
 }
 
-// ── Contour field (data only — not drawn) ─────────────────────
+// ── Accumulated path line ─────────────────────────────────────
+function drawGraphLine() {
+  if (graphPath.length < 2) return;
+  stroke(0);
+  strokeWeight(1.5);
+  noFill();
+  beginShape();
+  for (let pt of graphPath) {
+    vertex(pt.x, pt.y);
+  }
+  endShape();
+}
+
+// ── Contour terrain kept only for field data (getOrbY/getAQIatX) ──
 function buildContourField() {
   noiseSeed(99);
   field = [];
@@ -2336,13 +2339,14 @@ function drawYearTicks() {
   let yBot = height - 95;
 
   for (let yr of years) {
+    // Find first data point of that year
     let idx = AQI_DATA.findIndex((r) => r.d.startsWith(String(yr)));
     if (idx < 0) continue;
     let px = map(idx, 0, N - 1, x0, x0 + tw);
-    stroke(160);
+    stroke(80);
     strokeWeight(0.8);
     line(px, yBot, px, yBot + 6);
-    fill(90);
+    fill(60);
     noStroke();
     textSize(9);
     textAlign(CENTER);
@@ -2357,6 +2361,14 @@ function updateBall() {
     ballX = constrain(mouseX, 60, width - 60);
     if (frameCount % 2 === 0)
       particles.push(createParticle(ballX, getOrbY(ballX)));
+    // record position for the line plot
+    let oy = getOrbY(ballX);
+    // only add if x moved meaningfully or this is the first point
+    if (graphPath.length === 0 || abs(ballX - graphPath[graphPath.length - 1].x) > 1) {
+      graphPath.push({ x: ballX, y: oy });
+      // keep path sorted by x so the line doesn't jump backwards
+      graphPath.sort((a, b) => a.x - b.x);
+    }
   }
 }
 
@@ -2429,19 +2441,15 @@ function drawOrbAnimated() {
     ellipse(ballX, oy, r * 2);
   }
 
-  // ── DRAW SPRITE ──────────────────────────────────────────────
+  // ── DRAW SPRITE INSTEAD OF BALL ──────────
   imageMode(CENTER);
-  noSmooth(); // keeps pixel-art crisp at integer multiples
+  noSmooth(); // keeps pixel crisp
 
   let img = frames[frameIndex];
-  // Scale to nearest integer multiple of 32 that fits well:
-  // use 3× = 96px for clean pixel scaling at any window size
-  let spriteSize = 96;
-  image(img, ballX, oy, spriteSize, spriteSize);
+  image(img, ballX, oy, 64, 64); // scaled from 32x32
 
-  // ── SCAN LINE (dark on white bg) ─────────────────────────────
-  let darkenedC = c.map(v => max(0, v - 60));
-  stroke(darkenedC[0], darkenedC[1], darkenedC[2], 80);
+  // ── KEEP SCAN LINE ───────────────────────
+  stroke(0, 0, 0, 60);
   strokeWeight(1);
   let y0 = 80,
     th = height - 180;
@@ -2487,44 +2495,44 @@ function drawHUD() {
   let band = getBand(aqi);
   let c = aqiColorArr(aqi);
 
-  // Panel — light gray on white bg
-  fill(235, 237, 242, 230);
+  // Panel
+  fill(12, 16, 28, 220);
   noStroke();
   rect(55, height - 95, width - 110, 78, 7);
 
   // AQI big number
-  fill(...c.map(v => max(0, v - 40))); // darken for readability on light bg
+  fill(...c);
   textSize(30);
   textAlign(LEFT, CENTER);
   text("AQI " + nf(int(aqi), 3), 75, height - 60);
 
   // Band label
-  fill(80);
+  fill(190);
   textSize(10);
   text(BAND_LABELS[band].toUpperCase(), 75, height - 34);
 
   // ── Lung health bar ──
   let bx = 290,
     by = height - 82,
-    bw = width - 290 - 220,
+    bw = 430,
     bh = 12;
   let hPct = int(health);
   let hCol = conditionColor(hPct);
 
-  fill(210, 213, 220);
+  fill(25, 32, 52);
   rect(bx, by, bw, bh, 4);
   fill(...hCol);
   rect(bx, by, bw * (hPct / 100), bh, 4);
 
-  fill(60);
+  fill(210);
   textSize(10);
   text("LUNG HEALTH  " + hPct + "%", bx, by + 22);
-  fill(...hCol.map(v => max(0, v - 50)));
+  fill(...hCol);
   textSize(10);
   text("▸ " + condition(hPct), bx, by + 36);
 
   // Date label
-  fill(90);
+  fill(150);
   textSize(10);
   textAlign(RIGHT);
   text(rec.d, width - 65, height - 65);
@@ -2533,18 +2541,18 @@ function drawHUD() {
   textAlign(LEFT);
 
   // Title
-  fill(30);
+  fill(240);
   textSize(12);
   text("AHMEDABAD  AIR QUALITY  2016 – 2025", 55, 50);
-  fill(140);
+  fill(90);
   textSize(9);
   text("DRAG ORB  ←  →    AGE SLIDER →", 55, 65);
 
   // Age slider label
-  fill(100);
+  fill(160);
   textSize(10);
-  text("AGE", width * 0.64, 46);
-  text(age, width * 0.9, 46);
+  text("AGE", floor(width * 0.648), 46);
+  text(age, floor(width * 0.878), 46);
 }
 
 // ── Legend ────────────────────────────────────────────────────
@@ -2554,9 +2562,9 @@ function drawLegend() {
     lh = (height - 183) / 6;
   noStroke();
   for (let i = 0; i < PALETTE.length; i++) {
-    fill(...PALETTE[i], 200);
+    fill(...PALETTE[i], 170);
     rect(lx, ly + i * lh, 8, lh - 1, 2);
-    fill(80);
+    fill(130);
     textSize(8);
     textAlign(RIGHT);
     text(BAND_MAX[i], lx - 3, ly + i * lh + lh * 0.5 + 3);
