@@ -2255,7 +2255,7 @@ function setup() {
   colorMode(RGB, 255);
   textFont("monospace");
 
-  ageSlider = createSlider(5, 80, 25, 1);
+  ageSlider = createSlider(18, 60, 25, 1);
   repositionSlider();
   ageAnchorX = 90;
   ageAnchorValue = 25;
