@@ -2212,6 +2212,8 @@ let dragging = false;
 let health = 100;
 let age = 25;
 let ageSlider;
+let ageAnchorX = 55;      // x position when age was last set by slider
+let ageAnchorValue = 25;  // age value at that anchor point
 
 const GRID_W = 250,
   GRID_H = 80;
@@ -2255,8 +2257,10 @@ function setup() {
 
   ageSlider = createSlider(5, 80, 25, 1);
   repositionSlider();
+  ageAnchorX = 90;
+  ageAnchorValue = 25;
 
-  ballX = 50 + (width - 100) * 0.2;
+  ballX = 90; // start at the very beginning of the graph
   buildContourField();
 }
 
@@ -2277,30 +2281,74 @@ function repositionSlider() {
 function draw() {
   background(8, 10, 18, 255);
 
-  age = ageSlider.value();
-  health = computeHealth(getAQIatX(ballX), age, 0);
+  // Detect if slider was moved — update anchor to current ballX position
+  let sliderAge = ageSlider.value();
+  if (sliderAge !== ageAnchorValue) {
+    ageAnchorX = ballX;
+    ageAnchorValue = sliderAge;
+  }
+
+  // Compute effective age: slider age + years elapsed since anchor
+  let x0 = 55, tw = width - 110;
+  let anchorIdx = constrain(floor(map(ageAnchorX, x0, x0 + tw, 0, N - 1)), 0, N - 1);
+  let currentIdx = constrain(floor(map(ballX, x0, x0 + tw, 0, N - 1)), 0, N - 1);
+  let anchorDate = new Date(AQI_DATA[anchorIdx].d);
+  let currentDate = new Date(AQI_DATA[currentIdx].d);
+  let yearsElapsed = (currentDate - anchorDate) / (1000 * 60 * 60 * 24 * 365.25);
+  age = ageAnchorValue + yearsElapsed;
+
+  health = computeHealth(getAQIatX(ballX), floor(age), 0);
 
   drawGraphArea();
+  drawYAxisLabels();
   updateParticles();
   drawParticles();
   updateBall();
   drawGraphLine();
   drawOrbAnimated();
   drawHUD();
-  drawLegend();
   drawYearTicks();
-  let endX = width - 60;
+  let endX = width - 200;
   updateTrophyTrigger(ballX, endX);
-  drawTrophyButton(width - 80, height / 2, 60);
+  drawTrophyButton(width - 230, height / 2, 60);
   drawCongratsScreen();
 }
 
 // ── White graph area (replaces heatmap) ───────────────────────
 function drawGraphArea() {
-  let x0 = 55, y0 = 80, tw = width - 110, th = height - 180;
+  let x0 = 90, y0 = 80, tw = width - 150, th = height - 180;
   fill(255);
   noStroke();
   rect(x0, y0, tw, th);
+}
+
+// ── Y-Axis AQI labels ─────────────────────────────────────────
+function drawYAxisLabels() {
+  let x0 = 90, y0 = 80, th = height - 180;
+  let aqiTicks = [0, 50, 100, 200, 300, 400, 500];
+  textAlign(RIGHT, CENTER);
+  for (let v of aqiTicks) {
+    let py = map(v, 0, 500, y0 + th, y0);
+    // Grid line
+    stroke(180, 180, 180, 120);
+    strokeWeight(0.5);
+    line(x0, py, x0 + (width - 150), py);
+    // Label
+    noStroke();
+    fill(200);
+    textSize(10);
+    text(v, x0 - 6, py);
+  }
+  // Y-axis title
+  push();
+  translate(18, y0 + th / 2);
+  rotate(-HALF_PI);
+  fill(160);
+  textSize(10);
+  textAlign(CENTER, CENTER);
+  text("AQI", 0, 0);
+  pop();
+  textAlign(LEFT);
 }
 
 // ── Accumulated path line ─────────────────────────────────────
@@ -2333,8 +2381,8 @@ function buildContourField() {
 
 // ── Year tick marks below terrain ─────────────────────────────
 function drawYearTicks() {
-  let x0 = 55,
-    tw = width - 110;
+  let x0 = 90,
+    tw = width - 150;
   let years = [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
   let yBot = height - 95;
 
@@ -2358,7 +2406,7 @@ function drawYearTicks() {
 // ── Orb ───────────────────────────────────────────────────────
 function updateBall() {
   if (dragging) {
-    ballX = constrain(mouseX, 60, width - 60);
+    ballX = constrain(mouseX, 90, width - 60);
     if (frameCount % 2 === 0)
       particles.push(createParticle(ballX, getOrbY(ballX)));
     // record position for the line plot
@@ -2373,8 +2421,8 @@ function updateBall() {
 }
 
 function getOrbY(x) {
-  let x0 = 55,
-    tw = width - 110;
+  let x0 = 90,
+    tw = width - 150;
   let col = floor(map(x, x0, x0 + tw, 0, GRID_W - 1));
   col = constrain(col, 0, GRID_W - 1);
   let midRow = floor(GRID_H * 0.5);
@@ -2384,16 +2432,16 @@ function getOrbY(x) {
 }
 
 function getAQIatX(x) {
-  let x0 = 55,
-    tw = width - 110;
+  let x0 = 90,
+    tw = width - 150;
   let col = floor(map(x, x0, x0 + tw, 0, GRID_W - 1));
   col = constrain(col, 0, GRID_W - 1);
   return field[floor(GRID_H * 0.5)][col];
 }
 
 function getDataPointAtX(x) {
-  let x0 = 55,
-    tw = width - 110;
+  let x0 = 90,
+    tw = width - 150;
   let idx = floor(map(x, x0, x0 + tw, 0, N - 1));
   idx = constrain(idx, 0, N - 1);
   return AQI_DATA[idx];
@@ -2494,81 +2542,101 @@ function drawHUD() {
   let rec = getDataPointAtX(ballX);
   let band = getBand(aqi);
   let c = aqiColorArr(aqi);
+  let hPct = int(health);
+  let hCol = conditionColor(hPct);
+  let displayAge = floor(age);
 
-  // Panel
-  fill(12, 16, 28, 220);
+  // ── Top title bar ──
+  fill(240);
+  textSize(14);
+  textAlign(LEFT, CENTER);
   noStroke();
-  rect(55, height - 95, width - 110, 78, 7);
+  text("AHMEDABAD  AIR QUALITY  2016 – 2025", 90, 50);
+  fill(90);
+  textSize(10);
+  text("DRAG ORB  ←  →    SET AGE WITH SLIDER →", 90, 66);
+
+  // Age slider label
+  fill(160);
+  textSize(11);
+  text("AGE", floor(width * 0.648), 46);
+  text(ageSlider.value() + " yrs", floor(width * 0.878), 46);
+
+  // ── Right-side info card ──
+  let cx = width - 58;   // right edge anchor (card drawn right-aligned here)
+  let cardW = 190;
+  let cardX = cx - cardW;
+  let cardY = 90;
+  let cardH = height - 210;
+
+  // Card background
+  fill(12, 16, 28, 230);
+  noStroke();
+  rect(cardX, cardY, cardW, cardH, 8);
 
   // AQI big number
   fill(...c);
-  textSize(30);
-  textAlign(LEFT, CENTER);
-  text("AQI " + nf(int(aqi), 3), 75, height - 60);
+  textSize(38);
+  textAlign(CENTER, TOP);
+  text(nf(int(aqi), 3), cardX + cardW / 2, cardY + 16);
 
   // Band label
-  fill(190);
+  fill(200);
+  textSize(11);
+  textAlign(CENTER, TOP);
+  text(BAND_LABELS[band].toUpperCase(), cardX + cardW / 2, cardY + 62);
+
+  // Divider
+  stroke(40, 50, 80);
+  strokeWeight(1);
+  line(cardX + 12, cardY + 80, cardX + cardW - 12, cardY + 80);
+  noStroke();
+
+  // Character label
+  fill(150);
   textSize(10);
-  text(BAND_LABELS[band].toUpperCase(), 75, height - 34);
+  textAlign(LEFT, TOP);
+  text("TRAFFIC POLICEMAN", cardX + 12, cardY + 90);
 
-  // ── Lung health bar ──
-  let bx = 290,
-    by = height - 82,
-    bw = 430,
-    bh = 12;
-  let hPct = int(health);
-  let hCol = conditionColor(hPct);
+  // Age (accumulated)
+  fill(220);
+  textSize(15);
+  text("Age  " + displayAge + " yrs", cardX + 12, cardY + 110);
 
+  // Date
+  fill(180);
+  textSize(13);
+  text(rec.d, cardX + 12, cardY + 132);
+
+  // Health condition label
+  fill(150);
+  textSize(10);
+  text("HEALTH CONDITION", cardX + 12, cardY + 162);
+
+  fill(...hCol);
+  textSize(12);
+  let cond = condition(hPct);
+  // Word-wrap condition text
+  let words = cond.split(" ");
+  let line1 = "", line2 = "";
+  for (let w of words) {
+    if ((line1 + w).length <= 18) line1 += (line1 ? " " : "") + w;
+    else line2 += (line2 ? " " : "") + w;
+  }
+  text(line1, cardX + 12, cardY + 178);
+  if (line2) text(line2, cardX + 12, cardY + 195);
+
+  // Lung health bar
+  let bx = cardX + 12, by = cardY + 220, bw = cardW - 24, bh = 10;
   fill(25, 32, 52);
   rect(bx, by, bw, bh, 4);
   fill(...hCol);
   rect(bx, by, bw * (hPct / 100), bh, 4);
 
-  fill(210);
+  fill(180);
   textSize(10);
-  text("LUNG HEALTH  " + hPct + "%", bx, by + 22);
-  fill(...hCol);
-  textSize(10);
-  text("▸ " + condition(hPct), bx, by + 36);
+  text("LUNG HEALTH  " + hPct + "%", bx, by + 18);
 
-  // Date label
-  fill(150);
-  textSize(10);
-  textAlign(RIGHT);
-  text(rec.d, width - 65, height - 65);
-  text(rec.c.toUpperCase(), width - 65, height - 50);
-  text("AGE " + age + " yrs", width - 65, height - 35);
-  textAlign(LEFT);
-
-  // Title
-  fill(240);
-  textSize(12);
-  text("AHMEDABAD  AIR QUALITY  2016 – 2025", 55, 50);
-  fill(90);
-  textSize(9);
-  text("DRAG ORB  ←  →    AGE SLIDER →", 55, 65);
-
-  // Age slider label
-  fill(160);
-  textSize(10);
-  text("AGE", floor(width * 0.648), 46);
-  text(age, floor(width * 0.878), 46);
-}
-
-// ── Legend ────────────────────────────────────────────────────
-function drawLegend() {
-  let lx = width - 50,
-    ly = 82,
-    lh = (height - 183) / 6;
-  noStroke();
-  for (let i = 0; i < PALETTE.length; i++) {
-    fill(...PALETTE[i], 170);
-    rect(lx, ly + i * lh, 8, lh - 1, 2);
-    fill(130);
-    textSize(8);
-    textAlign(RIGHT);
-    text(BAND_MAX[i], lx - 3, ly + i * lh + lh * 0.5 + 3);
-  }
   textAlign(LEFT);
 }
 
